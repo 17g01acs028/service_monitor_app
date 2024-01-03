@@ -3,4 +3,4 @@ ID,Service Name,Service Host,Service Port,Service Resource URI,Service Method,Ex
 Ltd Members' Portal",https,10,Minutes
 2,Sky World Services Portal,portal.skyworld.co.ke,443,/,GET,Connected to portal.skyworld.co.ke.,"Welcome to Sky World Limited
 Services Hub",https,300,Seconds
-3,Enum portal,localhost,3001,/,GET,connected to enum portal,welcome to enum,http,300,seconds
+3,Enum portal,localhost,3001,/,GET,connected to enum portal,welcome to enum,https,300,seconds
