@@ -1,29 +1,51 @@
 package org.example;
 
+import com.google.gson.annotations.SerializedName;
+
 import java.util.concurrent.TimeUnit;
 
 class ServiceInfo {
+    @SerializedName("ID")
     private final String id;
+    @SerializedName("ServiceName")
     private final String serviceName;
+    @SerializedName("ServiceHost")
     private final String serviceHost;
+    @SerializedName("ServicePort")
     private final int servicePort;
+    @SerializedName("Protocol")
     private final String serviceProtocol;
+    @SerializedName("ServiceResourceURI")
     private final String serviceResourceURI;
+    @SerializedName("ServiceMethod")
     private final String serviceMethod;
+    @SerializedName("ExpectedTelnetResponse")
     private final String expectedTelnetResponse;
+    @SerializedName("ExpectedRequestResponse")
     private final String expectedRequestResponse;
+    @SerializedName("MonitoringIntervals")
     private final long monitoringInterval;
+    @SerializedName("MonitoringIntervalsTimeUnit")
     private final TimeUnit timeUnit;
 
+    @SerializedName("EnableFileLogging")
     private final String enableFileLogging;
-
+    @SerializedName("FileLoggingInterval")
     private final String fileLoggingInterval;
 
-    private final String lastLogTime;
+    @SerializedName("EnableLogsArchiving")
+    private final String enableFileArchiving;
+    @SerializedName("LogArchivingIntervals")
+    private final String fileArchivingInterval;
+
+    @SerializedName("LastLogTime")
+    private String lastLogTime;
+    @SerializedName("LastArchiveTime")
+    private String lastArchiveTime;
 
     public ServiceInfo(String id, String serviceName, String serviceHost, String serviceProtocol, int servicePort, String serviceResourceURI,
                        String serviceMethod, String expectedTelnetResponse, String expectedRequestResponse,
-                       long monitoringInterval, TimeUnit timeUnit, String enableFileLogging, String fileLoggingInterval, String lastLogTime) {
+                       long monitoringInterval, TimeUnit timeUnit, String enableFileLogging, String fileLoggingInterval,  String enableFileArchiving, String fileArchivingInterval, String lastLogTime, String lastArchiveTime) {
         this.id = id;
         this.serviceName = serviceName;
         this.serviceHost = serviceHost;
@@ -37,7 +59,10 @@ class ServiceInfo {
         this.serviceProtocol = serviceProtocol;
         this.enableFileLogging = enableFileLogging;
         this.fileLoggingInterval = fileLoggingInterval;
+        this.enableFileArchiving = enableFileArchiving;
+        this.fileArchivingInterval = fileArchivingInterval;
         this.lastLogTime = lastLogTime;
+        this.lastArchiveTime = lastArchiveTime;
     }
     public String getId() { return id; }
     public String getServiceName() { return serviceName; }
@@ -55,5 +80,17 @@ class ServiceInfo {
 
     public String getFileLoggingInterval(){return fileLoggingInterval;}
 
+    public String getEnableFileArchiving(){return enableFileArchiving;}
+
+    public String getFileArchivingInterval(){return fileArchivingInterval;}
+
     public String getLastLogTime(){return lastLogTime;}
+
+    public void setLastLogTime(String value){
+        this.lastLogTime = value;
+    }
+    public String getLastArchiveTime(){return lastArchiveTime;}
+    public void setLastArchiveTime(String value){
+        this.lastArchiveTime = value;
+    }
 }

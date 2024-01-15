@@ -3,31 +3,6 @@ package org.example;
 import java.io.*;
 import java.net.*;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.time.ZoneId;
-import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVParser;
-import org.apache.commons.csv.CSVPrinter;
-import org.apache.commons.csv.CSVRecord;
-
-import javax.net.ssl.*;
-import javax.xml.parsers.DocumentBuilderFactory;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.TextStyle;
-import java.io.*;
-import java.net.*;
-
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.nodes.Tag;
@@ -78,8 +53,8 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 
-
 public class Main {
+
     private static final int NUMBER_OF_THREADS = 10;
     private static boolean isMonitoringActive = false;
     private  static final ScheduledExecutorService executor = Executors.newScheduledThreadPool(NUMBER_OF_THREADS);
@@ -87,211 +62,51 @@ public class Main {
 
     private static  final int lock =0;
     private static final String activeServiceName = null;
-    public static  String fileName;
+    public static final String fileName = "services.csv";
     private static String lasttimeLog="";
 
-    public static void main(String[] args) throws IOException {
-        String configDirPath = "config";
-        File configDir = new File(configDirPath);
-        File[] files = configDir.listFiles();
-
-        if (files == null || files.length == 0) {
-            System.out.println("We don't have a config file.");
-            return;
-        }
-
-        boolean configFileProcessed = false;
-
+    public static void main(String[] args) {
         try {
-            for (File file : files) {
-                 String filename = file.getName();
-                 fileName = file.getAbsolutePath();
-                 if (filename.endsWith(".csv")) {
-                    services = readServicesFromCSV(fileName);
-                    configFileProcessed = true;
-                 }else if (filename.endsWith(".xml")) {
-                    services = readServicesFromXML(fileName);
-                    configFileProcessed = true;
-                 }else if (filename.endsWith(".ini")) {
-                     services = readServicesFromINI(fileName);
-                     configFileProcessed = true;
-                 }else if (filename.endsWith(".yaml")) {
-                     services = readServicesFromYAML(fileName);
-                     configFileProcessed = true;
-                 }else if (filename.endsWith(".json")) {
-                     services = readServicesFromJSON(fileName);
-                     configFileProcessed = true;
-                 }
 
-
-                if (configFileProcessed) {
-                    taskArchive();
-                    System.out.println(services);
-                    break;
+            if(fileName.endsWith(".xml")){
+                services = readServicesFromXML(fileName);
+            }else if(fileName.endsWith(".csv")){
+                services = readServicesFromCSV(fileName);
+            }else  if(fileName.endsWith(".yaml")){
+                services = readServicesFromYAML(fileName);
+            }else  if(fileName.endsWith(".ini")){
+                services = readServicesFromINI(fileName);
+            }else  if(fileName.endsWith(".json")){
+                services = readServicesFromJSON(fileName);
+            }
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            for (ServiceInfo service : services) {
+                if ("yes".equalsIgnoreCase(service.getEnableFileArchiving())) {
+                    String logDirectoryPath = "logs/service" + service.getId();
+                    File logDir = new File(logDirectoryPath);
+                    if (logDir.exists() && logDir.isDirectory()) {
+                        LogArchiver archiver = new LogArchiver(logDirectoryPath, service.getFileArchivingInterval().toLowerCase());
+                        executor.submit(archiver);
+                    }
                 }
             }
 
-            if (!configFileProcessed) {
-                System.out.println("No valid config file found.");
-                return;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
+            System.out.println(services);
+
+        }catch(Exception e){
+
         }
 
         startCommandListener();
+
     }
 
-    private static void processServices(List<ServiceInfo> services) throws Exception {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-        String timestamp = sdf.format(new Date());
-
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        for (ServiceInfo service : services) {
-            if ("yes".equalsIgnoreCase(service.getEnableFileArchiving())) {
-                String logDirectoryPath = "logs/"+service.getServiceName() ;
-                File logDir = new File(logDirectoryPath);
-
-                if("yes".equalsIgnoreCase(service.getEnableFileArchiving())){
-                    if (service.getLastArchiveTime().isEmpty()) {
-                        if(fileName.endsWith(".xml")){
-                            updateXmlLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else if(fileName.endsWith(".csv")){
-                            updateCsvLastTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".yaml")){
-                            updateYamlLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".ini")){
-                            updateIniLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".json")){
-                            updateJsonLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }
-
-                        service.setLastArchiveTime(timestamp);
-                    }
-
-                    LocalDateTime currentTime = LocalDateTime.now();
-
-                    LocalDateTime nextArchiveTime = getNextArchiveTime(service, service.getLastArchiveTime());
-                    if (currentTime.isAfter(nextArchiveTime)) {
-                        if(fileName.endsWith(".xml")){
-                            updateXmlLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else if(fileName.endsWith(".csv")){
-                            updateCsvLastTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".yaml")){
-                            updateYamlLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".ini")){
-                            updateIniLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".json")){
-                            updateJsonLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }
-                        service.setLastArchiveTime(timestamp);
-                    }
-                }
-
-                if (logDir.exists() && logDir.isDirectory()) {
-                    LogArchiver archiver = new LogArchiver(logDirectoryPath, fileName, service.getFileArchivingInterval().toLowerCase(),service);
-                    executor.submit(archiver);
-                }
-            }
-        }
-    }
-
-    private static void taskLog() throws Exception {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-        String timestamp = sdf.format(new Date());
+    private static void taskLog(){
         if (isMonitoringActive) {
             for (ServiceInfo service : services) {
-                String filename = fileName;
-                if("yes".equalsIgnoreCase(service.getEnableFileArchiving())){
-                    if (service.getLastArchiveTime().isEmpty()) {
-                        if(fileName.endsWith(".xml")){
-                            updateXmlLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else if(fileName.endsWith(".csv")){
-                            updateCsvLastTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".yaml")){
-                            updateYamlLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".ini")){
-                            updateIniLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".json")){
-                            updateJsonLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }
-                        service.setLastArchiveTime(timestamp);
-                    }
-
-                    LocalDateTime nextLogTime = getNextLogTime(service, service.getLastLogTime());
-                    LocalDateTime currentTime = LocalDateTime.now();
-
-                    if (currentTime.isAfter(nextLogTime)) {
-                        if(fileName.endsWith(".xml")){
-                            updateXmlLastLogTime(service.getId(), timestamp,fileName, "log");
-                        }else if(fileName.endsWith(".csv")){
-                            updateCsvLastTime(service.getId(), timestamp,fileName, "log");
-                        }else  if(fileName.endsWith(".yaml")){
-                            updateYamlLastLogTime(service.getId(), timestamp,fileName, "log");
-                        }else  if(fileName.endsWith(".ini")){
-                            updateIniLastLogTime(service.getId(), timestamp,fileName, "log");
-                        }else  if(fileName.endsWith(".json")){
-                            updateJsonLastLogTime(service.getId(), timestamp,fileName, "log");
-                        }
-                        service.setLastLogTime(timestamp);
-                    }
-
-                    LocalDateTime nextArchiveTime = getNextArchiveTime(service, service.getLastArchiveTime());
-                    if (currentTime.isAfter(nextArchiveTime)) {
-                        if(fileName.endsWith(".xml")){
-                            updateXmlLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else if(fileName.endsWith(".csv")){
-                            updateCsvLastTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".yaml")){
-                            updateYamlLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".ini")){
-                            updateIniLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".json")){
-                            updateJsonLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }
-                        service.setLastArchiveTime(timestamp);
-                    }
-                }
-
-                if("yes".equalsIgnoreCase(service.getEnableFileLogging())){
-                    if (!doesFileExist(filename)) {
-                        if(fileName.endsWith(".xml")){
-                            updateXmlLastLogTime(service.getId(), timestamp,fileName, "log");
-                        }else if(fileName.endsWith(".csv")){
-                            updateCsvLastTime(service.getId(), timestamp,fileName, "log");
-                        }else  if(fileName.endsWith(".yaml")){
-                            updateYamlLastLogTime(service.getId(), timestamp,fileName, "log");
-                        }else  if(fileName.endsWith(".ini")){
-                            updateIniLastLogTime(service.getId(), timestamp,fileName, "log");
-                        }else  if(fileName.endsWith(".json")){
-                            updateJsonLastLogTime(service.getId(), timestamp,fileName, "log");
-                        }
-                        service.setLastLogTime(timestamp);
-                    }
-
-                    LocalDateTime nextLogTime = getNextLogTime(service, service.getLastLogTime());
-                    LocalDateTime currentTime = LocalDateTime.now();
-
-                    if (currentTime.isAfter(nextLogTime)) {
-                        if(fileName.endsWith(".xml")){
-                            updateXmlLastLogTime(service.getId(), timestamp,fileName, "log");
-                        }else if(fileName.endsWith(".csv")){
-                            updateCsvLastTime(service.getId(), timestamp,fileName, "log");
-                        }else  if(fileName.endsWith(".yaml")){
-                            updateYamlLastLogTime(service.getId(), timestamp,fileName, "log");
-                        }else  if(fileName.endsWith(".ini")){
-                            updateIniLastLogTime(service.getId(), timestamp,fileName, "log");
-                        }else  if(fileName.endsWith(".json")){
-                            updateJsonLastLogTime(service.getId(), timestamp,fileName, "log");
-                        }
-                        service.setLastLogTime(timestamp);
-                    }
-
-                }
-
                 Runnable task = createMonitoringTask(service);
-                long interval = service.getMonitoringInterval();
-                TimeUnit unit = service.getTimeUnit();
+                long interval = service.getMonitoringInterval(); // Get interval from the ServiceInfo object
+                TimeUnit unit = service.getTimeUnit(); // Get time unit from the ServiceInfo object
                 executor.scheduleAtFixedRate(task, 0, interval, unit);
             }
         }else{
@@ -311,53 +126,6 @@ public class Main {
         }
     }
 
-    private static void taskArchive() throws Exception {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-        String timestamp = sdf.format(new Date());
-            for (ServiceInfo service : services) {
-                String filename = fileName;
-                if("yes".equalsIgnoreCase(service.getEnableFileArchiving())){
-                    if (service.getLastArchiveTime().isEmpty()) {
-                        if(fileName.endsWith(".xml")){
-                            updateXmlLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else if(fileName.endsWith(".csv")){
-                            updateCsvLastTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".yaml")){
-                            updateYamlLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".ini")){
-                            updateIniLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".json")){
-                            updateJsonLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }
-                        service.setLastArchiveTime(timestamp);
-                    }
-
-                    LocalDateTime currentTime = LocalDateTime.now();
-                    LocalDateTime nextArchiveTime = getNextArchiveTime(service, service.getLastArchiveTime());
-
-                    if (currentTime.isAfter(nextArchiveTime)) {
-                        if(fileName.endsWith(".xml")){
-                            updateXmlLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else if(fileName.endsWith(".csv")){
-                            updateCsvLastTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".yaml")){
-                            updateYamlLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".ini")){
-                            updateIniLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }else  if(fileName.endsWith(".json")){
-                            updateJsonLastLogTime(service.getId(), timestamp,fileName, "archive");
-                        }
-                        service.setLastArchiveTime(timestamp);
-                    }
-                }
-
-                Runnable task = createArchivingTask(service);
-                long interval = 5;
-                TimeUnit unit = TimeUnit.SECONDS;
-                executor.scheduleAtFixedRate(task, 0, interval, unit);
-            }
-
-    }
     /*This Method listens for commands and runs them Start Here*/
     private static void startCommandListener() {
         new Thread(() -> {
@@ -378,8 +146,6 @@ public class Main {
                 }
             } catch (IOException e) {
                 System.out.println(e.getMessage());
-            } catch (Exception e) {
-                throw new RuntimeException(e);
             }
         }).start();
     }
@@ -590,6 +356,20 @@ public class Main {
         }
     }
 
+
+
+    private static void shutdownExecutor() {
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
+
     private static List<ServiceInfo> readServicesFromCSV(String fileName) {
         List<ServiceInfo> services = new ArrayList<>();
         try (Reader reader = new FileReader(fileName);
@@ -609,10 +389,9 @@ public class Main {
                         TimeUnit.valueOf(record.get("Monitoring Intervals Time Unit").toUpperCase()),
                         record.get("Enable File Logging"),
                         record.get("File Logging Interval"),
-                        record.get("Enable Logs Archiving"),
-                        record.get("Log Archiving Intervals"),
-                        record.get("Last Log Time"),
-                        record.get("Last Archive Time")
+                        record.get("Enable File Archiving"),
+                        record.get("File Archiving Interval"),
+                        record.get("Last Log Time")
                 );
                 services.add(service);
             }
@@ -631,8 +410,7 @@ public class Main {
             Document doc = builder.parse(new File(fileName));
             doc.getDocumentElement().normalize();
 
-            NodeList nodeList = doc.getElementsByTagName("service");
-            String time = "";
+            NodeList nodeList = doc.getElementsByTagName("service"); // Use lowercase 'service' to match your XML
 
             for (int i = 0; i < nodeList.getLength(); i++) {
                 Element element = (Element) nodeList.item(i);
@@ -651,11 +429,10 @@ public class Main {
                         TimeUnit.valueOf(element.getElementsByTagName("MonitoringIntervalsTimeUnit").item(0).getTextContent().toUpperCase()),
                         element.getElementsByTagName("EnableFileLogging").item(0).getTextContent(),
                         element.getElementsByTagName("FileLoggingInterval").item(0).getTextContent(),
-                        element.getElementsByTagName("EnableLogsArchiving").item(0).getTextContent(),
-                        element.getElementsByTagName("LogArchivingIntervals").item(0).getTextContent(),
-                        element.getElementsByTagName("LastLogTime").item(0).getTextContent(),
-                        element.getElementsByTagName("LastArchiveTime").item(0).getTextContent()
-
+                        element.getElementsByTagName("EnableFileArchiving").item(0).getTextContent(),
+                        element.getElementsByTagName("FileArchivingInterval").item(0).getTextContent(),
+                        element.getElementsByTagName("LastLogTime").item(0).getTextContent()
+                        // ... other fields
                 );
                 services.add(service);
             }
@@ -673,7 +450,7 @@ public class Main {
         try (FileReader reader = new FileReader(fileName)) {
             Map<String, Object> yamlData = yaml.load(reader);
             List<Map<String, Object>> serviceList = (List<Map<String, Object>>) yamlData.get("services");
-            String time = "";
+
             for (Map<String, Object> map : serviceList) {
                 ServiceInfo service = new ServiceInfo(
                         map.get("ID").toString(),
@@ -689,10 +466,10 @@ public class Main {
                         TimeUnit.valueOf(((String) map.get("MonitoringIntervalsTimeUnit")).toUpperCase()),
                         map.get("EnableFileLogging").toString(),
                         map.get("FileLoggingInterval").toString(),
-                        map.get("EnableLogsArchiving").toString(),
-                        map.get("LogArchivingIntervals").toString(),
-                        map.get("LastLogTime").toString(),
-                        map.get("LastArchiveTime").toString()
+                        map.get("EnableFileArchiving").toString(),
+                        map.get("FileArchivingInterval").toString(),
+                        (String) map.get("LastLogTime") // Assuming LastLogTime can be null or empty
+                        // ... other fields
                 );
                 services.add(service);
             }
@@ -708,7 +485,7 @@ public class Main {
             JSONParser parser = new JSONParser();
             JSONArray jsonArray = (JSONArray) parser.parse(new FileReader(fileName));
             List<ServiceInfo> services = new ArrayList<>();
-            String time = "";
+
             for (Object o : jsonArray) {
                 JSONObject jsonObject = (JSONObject) o;
                 ServiceInfo service = new ServiceInfo(
@@ -725,10 +502,10 @@ public class Main {
                         TimeUnit.valueOf(((String) jsonObject.get("MonitoringIntervalsTimeUnit")).toUpperCase()),
                         jsonObject.get("EnableFileLogging").toString(),
                         jsonObject.get("FileLoggingInterval").toString(),
-                        jsonObject.get("EnableLogsArchiving").toString(),
-                        jsonObject.get("LogArchivingIntervals").toString(),
-                        jsonObject.get("LastLogTime").toString(),
-                        jsonObject.get("LastArchiveTime").toString()
+                        jsonObject.get("EnableFileArchiving").toString(),
+                        jsonObject.get("FileArchivingInterval").toString(),
+                        jsonObject.get("LastLogTime").toString()
+                        // ... other fields
                 );
                 services.add(service);
             }
@@ -742,7 +519,6 @@ public class Main {
     private static List<ServiceInfo> readServicesFromINI(String fileName) throws IOException {
         Ini ini = new Ini(new File(fileName));
         List<ServiceInfo> services = new ArrayList<>();
-        String time = "";
 
         for (String sectionName : ini.keySet()) {
             Ini.Section section = ini.get(sectionName);
@@ -760,19 +536,14 @@ public class Main {
                     TimeUnit.valueOf(section.get("MonitoringIntervalsTimeUnit").toUpperCase()),
                     section.get("EnableFileLogging"),
                     section.get("FileLoggingInterval"),
-                    section.get("EnableLogsArchiving"),
-                    section.get("LogArchivingIntervals"),
-                    section.get("LastLogTime"),
-                    section.get("LastArchiveTime")
+                    section.get("EnableFileArchiving"),
+                    section.get("FileArchivingInterval"),
+                    section.get("LastLogTime")
+                    // ... other fields
             );
             services.add(service);
         }
         return services;
-    }
-
-    public static boolean doesFileExist(String filename) {
-        File file = new File(filename);
-        return file.exists();
     }
 
     private static Runnable createMonitoringTask(ServiceInfo service) {
@@ -794,34 +565,13 @@ public class Main {
             Object[] app_result = isApplicationUp(protocol,host,path,method);
             boolean isAppUp = (Boolean) app_result[0];
 
-            String dirPath = "logs/"+service.getServiceName();
+            String dirPath = "logs/service"+service.getId();
             File directory = new File(dirPath);
-
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-            String timestamp = sdf.format(new Date());
 
             if(service.getEnableFileLogging().equals("yes")){
                 if (!directory.exists()) {
                     boolean isCreated = directory.mkdirs();
-                   // LogTimeMonitor.updateLastLogTime(dirPath + File.separator +"last_time_log.txt");
-                   service.setLastLogTime(timestamp);
-                    try {
-                        if(fileName.endsWith(".xml")){
-                            updateXmlLastLogTime(service.getId(), timestamp,fileName, "log");
-                        }else if(fileName.endsWith(".csv")){
-                            updateCsvLastTime(service.getId(), timestamp,fileName, "log");
-                        }else  if(fileName.endsWith(".yaml")){
-                            updateYamlLastLogTime(service.getId(), timestamp,fileName, "log");
-                        }else  if(fileName.endsWith(".ini")){
-                            updateIniLastLogTime(service.getId(), timestamp,fileName, "log");
-                        }else  if(fileName.endsWith(".json")){
-                            updateJsonLastLogTime(service.getId(), timestamp,fileName, "log");
-                        }
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
+
                     if (!isCreated) {
                         System.out.println("Failed to create directory.");
                     }
@@ -832,18 +582,22 @@ public class Main {
                     if(lasttimeLog.isEmpty()){
 
                         try {
+                            SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
+                            String timestamp = sdf.format(new Date());
                             service.setLastLogTime(timestamp);
+
                             if(fileName.endsWith(".xml")){
-                                updateXmlLastLogTime(service.getId(), timestamp,fileName, "log");
+                                updateXmlLastLogTime(service.getId(),timestamp,fileName);
                             }else if(fileName.endsWith(".csv")){
-                                updateCsvLastTime(service.getId(), timestamp,fileName, "log");
+                                updateCsvLastLogTime(service.getId(), timestamp,fileName);
                             }else  if(fileName.endsWith(".yaml")){
-                                updateYamlLastLogTime(service.getId(), timestamp,fileName, "log");
+
                             }else  if(fileName.endsWith(".ini")){
-                                updateIniLastLogTime(service.getId(), timestamp,fileName, "log");
+                                updateIniLastLogTime(service.getId(),timestamp,fileName);
                             }else  if(fileName.endsWith(".json")){
-                                updateJsonLastLogTime(service.getId(), timestamp,fileName, "log");
+                                updateJsonLastLogTime(service.getId(),timestamp,fileName);
                             }
+
                             String logServerFileName = generateLogFileName(dirPath, "server");
                             writeLogEntry(logServerFileName, dayOfWeek + " " + formattedDateTime + " " + "Server status for " + service.getServiceName() + ": " + (isServerUp ? "Up" : "Down") + ", Response: " + server_result[1]);
                             String logApplicationFileName = generateLogFileName(dirPath, "application");
@@ -858,18 +612,22 @@ public class Main {
 
                         if (currentTime.isAfter(nextLogTime)) {
                             try {
+                                SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
+                                String timestamp = sdf.format(new Date());
                                 service.setLastLogTime(timestamp);
+
                                 if(fileName.endsWith(".xml")){
-                                    updateXmlLastLogTime(service.getId(), timestamp,fileName, "log");
+                                    updateXmlLastLogTime(service.getId(),timestamp,fileName);
                                 }else if(fileName.endsWith(".csv")){
-                                    updateCsvLastTime(service.getId(), timestamp,fileName, "log");
+                                    updateCsvLastLogTime(service.getId(), timestamp,fileName);
                                 }else  if(fileName.endsWith(".yaml")){
-                                    updateYamlLastLogTime(service.getId(), timestamp,fileName, "log");
+
                                 }else  if(fileName.endsWith(".ini")){
-                                    updateIniLastLogTime(service.getId(), timestamp,fileName, "log");
+                                    updateIniLastLogTime(service.getId(),timestamp,fileName);
                                 }else  if(fileName.endsWith(".json")){
-                                    updateJsonLastLogTime(service.getId(), timestamp,fileName, "log");
+                                    updateJsonLastLogTime(service.getId(),timestamp,fileName);
                                 }
+
                                 String logServerFileName = generateLogFileName(dirPath, "server");
                                 writeLogEntry(logServerFileName, dayOfWeek + " " + formattedDateTime + " " + "Server status for " + service.getServiceName() + ": " + (isServerUp ? "Up" : "Down") + ", Response: " + server_result[1]);
                                 String logApplicationFileName = generateLogFileName(dirPath, "application");
@@ -894,122 +652,7 @@ public class Main {
         };
     }
 
-    private static Runnable createArchivingTask(ServiceInfo service) {
-        return () -> {
-            String logDirectoryPath = "logs/"+service.getServiceName() ;
-            File logDir = new File(logDirectoryPath);
-     if("yes".equalsIgnoreCase(service.getEnableFileArchiving())){
-         if (logDir.exists() && logDir.isDirectory()) {
-             LogArchiver archiver = new LogArchiver(logDirectoryPath, fileName, service.getFileArchivingInterval().toLowerCase(),service);
-             executor.submit(archiver);
-         }
-     }
 
-       };
-    }
-    private static LocalDateTime getNextLogTime(ServiceInfo service, String lastLogTimeStr) {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-        LocalDateTime lastLogTime;
-        String timestamp = sdf.format(new Date());
-
-        try {
-            Date lastLogDate = sdf.parse(lastLogTimeStr);
-            lastLogTime = lastLogDate.toInstant()
-                    .atZone(ZoneId.systemDefault())
-                    .toLocalDateTime();
-        } catch (ParseException e) {
-            //System.out.println("Error parsing the timestamp string: " + e.getMessage());
-            lastLogTime = LocalDateTime.now();
-        }
-
-        switch (service.getFileLoggingInterval().toLowerCase()) {
-            case "hourly":
-                return lastLogTime.plusHours(1);
-            case "daily":
-                return lastLogTime.plusDays(1);
-            case "weekly":
-                return lastLogTime.plusWeeks(1);
-            case "monthly":
-                return lastLogTime.plusMonths(1);
-            default:
-                throw new IllegalArgumentException("Invalid logging interval");
-        }
-    }
-
-    private static LocalDateTime getNextArchiveTime(ServiceInfo service, String lastArchiveTimeStr) {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-        LocalDateTime lastLogTime;
-        String timestamp = sdf.format(new Date());
-
-        try {
-            Date lastLogDate = sdf.parse(lastArchiveTimeStr);
-            lastLogTime = lastLogDate.toInstant()
-                    .atZone(ZoneId.systemDefault())
-                    .toLocalDateTime();
-        } catch (ParseException e) {
-            //System.out.println("Error parsing the timestamp string: " + e.getMessage());
-            lastLogTime = LocalDateTime.now();
-        }
-
-        switch (service.getFileArchivingInterval().toLowerCase()) {
-            case "hourly":
-                return lastLogTime.plusHours(1);
-            case "daily":
-                return lastLogTime.plusDays(1);
-            case "weekly":
-                return lastLogTime.plusWeeks(1);
-            case "monthly":
-                return lastLogTime.plusMonths(1);
-            default:
-                throw new IllegalArgumentException("Invalid logging interval");
-        }
-    }
-    private static String generateLogFileName(String dirPath, String name) {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-        String timestamp = sdf.format(new Date());
-        return dirPath + File.separator + timestamp + "_"+name+".log";
-    }
-
-    private static void writeLogEntry(String logFileName, String logEntry) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(logFileName, true))) {
-            writer.write(logEntry);
-            writer.newLine();
-        } catch (IOException e) {
-            System.out.println(e.getMessage());
-        }
-    }
-
-    //Write to files
-
-    public static void updateCsvLastTime(String serviceId, String newLogTime,String CSV_FILE_PATH,String action_type ) throws IOException {
-        List<CSVRecord> records = readCsvFile(CSV_FILE_PATH);
-        List<String[]> updatedRecords = new ArrayList<>();
-
-        // Add the header to updatedRecords
-        String[] header = records.get(0).getParser().getHeaderMap().keySet().toArray(new String[0]);
-        updatedRecords.add(header);
-
-        for (CSVRecord record : records) {
-            String[] recordData = new String[record.size()];
-            for (int i = 0; i < record.size(); i++) {
-                recordData[i] = record.get(i);
-            }
-
-            if (record.get("ID").equals(serviceId)) {
-                int lastLogTimeIndex;
-                if(action_type.equalsIgnoreCase("log")){
-                    lastLogTimeIndex = record.getParser().getHeaderMap().get("Last Log Time");
-                }else{
-                    lastLogTimeIndex = record.getParser().getHeaderMap().get("Last Archive Time");
-                }
-                recordData[lastLogTimeIndex] = newLogTime;
-            }
-
-            updatedRecords.add(recordData);
-        }
-
-        writeCsvFile(updatedRecords, CSV_FILE_PATH);
-    }
 
     private static List<CSVRecord> readCsvFile(String filePath) throws IOException {
         try (Reader reader = Files.newBufferedReader(Paths.get(filePath))) {
@@ -1028,78 +671,57 @@ public class Main {
             }
         }
     }
+    private static void updateCsvLastLogTime(String serviceId, String newLogTime,String CSV_FILE_PATH ) throws IOException {
+        List<CSVRecord> records = readCsvFile(CSV_FILE_PATH);
+        List<String[]> updatedRecords = new ArrayList<>();
 
+        // Add the header to updatedRecords
+        String[] header = records.get(0).getParser().getHeaderMap().keySet().toArray(new String[0]);
+        updatedRecords.add(header);
 
-    //Write to .Xml
-
-    public static void updateXmlLastLogTime(String serviceId, String newLogTime, String xmlFilePath, String action_type) throws Exception {
-        File xmlFile = new File(xmlFilePath);
-        DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
-        DocumentBuilder documentBuilder = documentBuilderFactory.newDocumentBuilder();
-        Document document = documentBuilder.parse(xmlFile);
-        document.getDocumentElement().normalize();
-
-        NodeList serviceList = document.getElementsByTagName("service");
-        boolean serviceFound = false;
-
-        for (int i = 0; i < serviceList.getLength(); i++) {
-            Element service = (Element) serviceList.item(i);
-            if("log".equalsIgnoreCase(action_type)){
-                if (service.getElementsByTagName("ID").item(0).getTextContent().equals(serviceId)) {
-                    service.getElementsByTagName("LastLogTime").item(0).setTextContent(newLogTime);
-                    serviceFound = true;
-                    break;
-                }
-            }else {
-                if (service.getElementsByTagName("ID").item(0).getTextContent().equals(serviceId)) {
-                    service.getElementsByTagName("LastArchiveTime").item(0).setTextContent(newLogTime);
-                    serviceFound = true;
-                    break;
-                }
+        for (CSVRecord record : records) {
+            String[] recordData = new String[record.size()];
+            for (int i = 0; i < record.size(); i++) {
+                recordData[i] = record.get(i);
             }
+
+            if (record.get("ID").equals(serviceId)) {
+                // Assuming the 'Last Log Time' column is named as such
+                int lastLogTimeIndex = record.getParser().getHeaderMap().get("Last Log Time");
+                recordData[lastLogTimeIndex] = newLogTime;
+            }
+
+            updatedRecords.add(recordData);
         }
 
-        if (!serviceFound) {
-            throw new IllegalArgumentException("Service ID not found in XML file");
-        }
-
-        TransformerFactory transformerFactory = TransformerFactory.newInstance();
-        Transformer transformer = transformerFactory.newTransformer();
-       // transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-        DOMSource source = new DOMSource(document);
-        StreamResult result = new StreamResult(xmlFile);
-        transformer.transform(source, result);
+        writeCsvFile(updatedRecords, CSV_FILE_PATH);
     }
-
-    //Write to .yaml
-    public static void updateYamlLastLogTime(String serviceId, String newLogTime, String yamlFilePath, String action_type) throws IOException {
+    public static void updateYamlLastLogTime(String serviceId, String newLogTime, String yamlFilePath) throws IOException {
         Yaml yaml = new Yaml();
         Map<String, Object> yamlData;
 
+        // Read YAML file
         try (FileReader reader = new FileReader(yamlFilePath)) {
             yamlData = yaml.load(reader);
         }
 
-
+        // Assume services are listed under a "services" key and each service is a map
         List<Map<String, Object>> services = (List<Map<String, Object>>) yamlData.get("services");
         boolean serviceFound = false;
+
         for (Map<String, Object> service : services) {
-            if (service.get("ID").toString().equals(serviceId)) {
-                if("log".equalsIgnoreCase(action_type)){
-                    service.put("LastLogTime", newLogTime);
-                }else{
-                    service.put("LastArchiveTime", newLogTime);
-                }
+            if (service.get("ID").equals(serviceId)) {
+                service.put("LastLogTime", newLogTime);
                 serviceFound = true;
                 break;
-
             }
         }
 
         if (!serviceFound) {
-            throw new IllegalArgumentException("Service ID not found in yaml file");
+            throw new IllegalArgumentException("Service ID not found in YAML file");
         }
 
+        // Write updated YAML back to file
         DumperOptions options = new DumperOptions();
         options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
         yaml = new Yaml(options);
@@ -1108,9 +730,7 @@ public class Main {
             yaml.dump(yamlData, writer);
         }
     }
-
-    //write to .ini
-    private static void updateIniLastLogTime(String serviceId, String newLogTime, String iniFilePath, String action_type) throws IOException {
+    private static void updateIniLastLogTime(String serviceId, String newLogTime, String iniFilePath) throws IOException {
         Path path = Paths.get(iniFilePath);
         List<String> fileContent = new ArrayList<>(Files.readAllLines(path, StandardCharsets.UTF_8));
 
@@ -1121,19 +741,11 @@ public class Main {
             if (line.trim().startsWith("[Service") && line.contains(serviceId)) {
                 serviceFound = true;
             }
-                if("log".equalsIgnoreCase(action_type)){
-                    if (serviceFound && line.startsWith("LastLogTime")) {
-                        fileContent.set(i, "LastLogTime = " + newLogTime);
-                        break;
-                    }
-                }else{
-                    if (serviceFound && line.startsWith("LastArchiveTime")) {
-                        fileContent.set(i, "LastArchiveTime = " + newLogTime);
-                        break;
-                    }
-                }
 
-
+            if (serviceFound && line.startsWith("LastLogTime")) {
+                fileContent.set(i, "LastLogTime = " + newLogTime);
+                break;
+            }
         }
 
         if (!serviceFound) {
@@ -1142,13 +754,9 @@ public class Main {
 
         Files.write(path, fileContent, StandardCharsets.UTF_8);
     }
-
-    //write to json file
     private static Gson createGsonWithCustomDeserializer() {
         return new GsonBuilder()
-                .setPrettyPrinting()  // Enable pretty printing
                 .registerTypeAdapter(ServiceInfo.class, new JsonDeserializer<ServiceInfo>() {
-
                     @Override
                     public ServiceInfo deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
                         JsonObject jsonObject = json.getAsJsonObject();
@@ -1166,20 +774,19 @@ public class Main {
                         TimeUnit MonitoringIntervalsTimeUnit = TimeUnit.valueOf(jsonObject.get("MonitoringIntervalsTimeUnit").getAsString().toUpperCase());
                         String EnableFileLogging = jsonObject.get("EnableFileLogging").getAsString();
                         String FileLoggingInterval = jsonObject.get("FileLoggingInterval").getAsString();
-                        String EnableLogsArchiving = jsonObject.get("EnableLogsArchiving").getAsString();
-                        String LogArchivingIntervals = jsonObject.get("LogArchivingIntervals").getAsString();
+                        String EnableFileArchiving = jsonObject.get("EnableFileArchiving").getAsString();
+                        String FileArchivingInterval = jsonObject.get("FileArchivingInterval").getAsString();
                         String LastLogTime = jsonObject.get("LastLogTime").getAsString();
-                        String LastArchiveTime = jsonObject.get("LastArchiveTime").getAsString();
 
                         return new ServiceInfo(ID, ServiceName, ServiceHost, Protocol, ServicePort, ServiceResourceURI,
                                 ServiceMethod, ExpectedTelnetResponse, ExpectedRequestResponse,
-                                MonitoringIntervals, MonitoringIntervalsTimeUnit, EnableFileLogging, FileLoggingInterval,EnableLogsArchiving, LogArchivingIntervals, LastLogTime,LastArchiveTime);
+                                MonitoringIntervals, MonitoringIntervalsTimeUnit, EnableFileLogging, FileLoggingInterval,EnableFileArchiving, FileArchivingInterval, LastLogTime);
                     }
                 })
                 .create();
     }
 
-    private static void updateJsonLastLogTime(String serviceId, String newLogTime, String jsonFilePath, String action_type ) throws IOException {
+    private static void updateJsonLastLogTime(String serviceId, String newLogTime, String jsonFilePath) throws IOException {
         Path path = Path.of(jsonFilePath);
         Gson gson = createGsonWithCustomDeserializer();
 
@@ -1192,26 +799,16 @@ public class Main {
         boolean serviceFound = false;
         for (ServiceInfo service : services) {
             if (service.getId().equals(serviceId)) {
+                // Create a new ServiceInfo object with updated lastLogTime
+                ServiceInfo updatedService = new ServiceInfo(service.getId(), service.getServiceName(), service.getServiceHost(),
+                        service.getServiceProtocol(), service.getServicePort(), service.getServiceResourceURI(), service.getServiceMethod(),
+                        service.getExpectedTelnetResponse(), service.getExpectedRequestResponse(), service.getMonitoringInterval(),
+                        service.getTimeUnit(), service.getEnableFileLogging(), service.getFileLoggingInterval(),service.getEnableFileArchiving(), service.getFileArchivingInterval(), newLogTime);
 
-                ServiceInfo updatedService;
-                if("log".equalsIgnoreCase(action_type)) {
-                    updatedService = new ServiceInfo(service.getId(), service.getServiceName(), service.getServiceHost(),
-                            service.getServiceProtocol(), service.getServicePort(), service.getServiceResourceURI(), service.getServiceMethod(),
-                            service.getExpectedTelnetResponse(), service.getExpectedRequestResponse(), service.getMonitoringInterval(),
-                            service.getTimeUnit(), service.getEnableFileLogging(), service.getFileLoggingInterval(), service.getEnableFileArchiving(), service.getFileArchivingInterval(), newLogTime, service.getLastArchiveTime());
-                  
-                }else{
-                    updatedService = new ServiceInfo(service.getId(), service.getServiceName(), service.getServiceHost(),
-                            service.getServiceProtocol(), service.getServicePort(), service.getServiceResourceURI(), service.getServiceMethod(),
-                            service.getExpectedTelnetResponse(), service.getExpectedRequestResponse(), service.getMonitoringInterval(),
-                            service.getTimeUnit(), service.getEnableFileLogging(), service.getFileLoggingInterval(), service.getEnableFileArchiving(), service.getFileArchivingInterval(), service.getLastLogTime(), newLogTime);
-                    
-                }
+                // Replace the old service object with the updated one
                 services.set(services.indexOf(service), updatedService);
                 serviceFound = true;
                 break;
-
-
             }
         }
 
@@ -1224,6 +821,80 @@ public class Main {
         Files.writeString(path, updatedJson, StandardOpenOption.TRUNCATE_EXISTING);
     }
 
+    public static void updateXmlLastLogTime(String serviceId, String newLogTime, String xmlFilePath) throws Exception {
+        File xmlFile = new File(xmlFilePath);
+        DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder documentBuilder = documentBuilderFactory.newDocumentBuilder();
+        Document document = documentBuilder.parse(xmlFile);
+        document.getDocumentElement().normalize();
+
+        NodeList serviceList = document.getElementsByTagName("service");
+        boolean serviceFound = false;
+
+        for (int i = 0; i < serviceList.getLength(); i++) {
+            Element service = (Element) serviceList.item(i);
+            if (service.getElementsByTagName("ID").item(0).getTextContent().equals(serviceId)) {
+                service.getElementsByTagName("LastLogTime").item(0).setTextContent(newLogTime);
+                serviceFound = true;
+                break;
+            }
+        }
+
+        if (!serviceFound) {
+            throw new IllegalArgumentException("Service ID not found in XML file");
+        }
+
+        TransformerFactory transformerFactory = TransformerFactory.newInstance();
+        Transformer transformer = transformerFactory.newTransformer();
+        transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+        DOMSource source = new DOMSource(document);
+        StreamResult result = new StreamResult(xmlFile);
+        transformer.transform(source, result);
+    }
+
+    private static LocalDateTime getNextLogTime(ServiceInfo service, String lastLogTimeStr) {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
+        LocalDateTime lastLogTime;
+        String timestamp = sdf.format(new Date());
+
+        try {
+            // Parse the timestamp string to Date
+            Date lastLogDate = sdf.parse(lastLogTimeStr);
+
+            // Convert Date to LocalDateTime
+            lastLogTime = lastLogDate.toInstant()
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDateTime();
+        } catch (ParseException e) {
+            //System.out.println("Error parsing the timestamp string: " + e.getMessage());
+            lastLogTime = LocalDateTime.now();
+        }
+
+        switch (service.getFileLoggingInterval()) {
+            case "Hourly":
+                return lastLogTime.plusHours(1);
+            case "Daily":
+                return lastLogTime.plusDays(1);
+            case "Weekly":
+                return lastLogTime.plusWeeks(1);
+            default:
+                throw new IllegalArgumentException("Invalid logging interval");
+        }
+    }
+    private static String generateLogFileName(String dirPath, String name) {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
+        String timestamp = sdf.format(new Date());
+        return dirPath + File.separator + timestamp + "_"+name+".log";
+    }
+
+    private static void writeLogEntry(String logFileName, String logEntry) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(logFileName, true))) {
+            writer.write(logEntry);
+            writer.newLine();
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+        }
+    }
 
 }
 

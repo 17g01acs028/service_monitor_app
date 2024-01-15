@@ -15,6 +15,7 @@ services:
       EnableLogsArchiving: "yes"
       LogArchivingIntervals: "Hourly"
       LastLogTime: "20240107_151357"
+      LastArchiveTime: ""
     - ID: 2
       ServiceName: "Sky World Services Portal"
       ServiceHost: "portal.skyworld.co.ke"
@@ -31,6 +32,7 @@ services:
       EnableLogsArchiving: "no"
       LogArchivingIntervals: "Daily"
       LastLogTime: "20240107_151359"
+      LastArchiveTime: ""
     - ID: 3
       ServiceName: "Enum portal"
       ServiceHost: "localhost"
@@ -47,6 +49,7 @@ services:
       EnableLogsArchiving: "no"
       LogArchivingIntervals: "Weekly"
       LastLogTime: ""
+      LastArchiveTime: ""
     - ID: 4
       ServiceName: "Division D"
       ServiceHost: "divisiond.district114.org"
@@ -63,3 +66,4 @@ services:
       EnableLogsArchiving: "no"
       LogArchivingIntervals: "Daily"
       LastLogTime: ""
+      LastArchiveTime: ""

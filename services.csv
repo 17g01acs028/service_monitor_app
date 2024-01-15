@@ -1,8 +1,8 @@
 ID,Service Name,Service Host,Service Port,Service Resource URI,Service Method,Expected Telnet Response,Expected Request Response,Protocol,Monitoring Intervals,Monitoring Intervals Time Unit,Enable File Logging,File Logging Interval,Enable Logs Archiving,Log Archiving Intervals,Last Log Time
 1,Harambee Members Portal,selfservice.harambeesacco.com,443,/,GET,Connected to selfservice.harambeesacco.com.,"Welcome to Harambee Sacco Society
-Ltd Members' Portal",https,6,seconds,yes,Hourly,yes,Hourly,20240107_214508
+Ltd Members' Portal",https,6,seconds,yes,Hourly,yes,Hourly,20240112_015215
 2,Sky World Services Portal,portal.skyworld.co.ke,443,/,GET,Connected to portal.skyworld.co.ke.,"Welcome to Sky World Limited
-Services Hub",https,10,seconds,yes,Daily,no,Daily,20240107_151359
+Services Hub",https,10,seconds,yes,Daily,no,Daily,20240112_015215
 3,Enum portal,localhost,3001,/,GET,connected to enum portal,welcome to enum,https,3,seconds,no,Weekly,no,Weekly,
 4,Division D,divisiond.district114.org,443,/,GET,Connected to divisiond.district114.org,"Welcome to
-  Services Hub",https,10,seconds,no,Daily,no,Daily,
+  Services Hub",https,10,seconds,no,Daily,no,Daily,20240109_140448
