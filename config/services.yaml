@@ -14,8 +14,8 @@ services:
   FileLoggingInterval: Hourly
   EnableLogsArchiving: 'yes'
   LogArchivingIntervals: Hourly
-  LastLogTime: '20240115_111637'
-  LastArchiveTime: '20240115_111525'
+  LastLogTime: '20240116_093049'
+  LastArchiveTime: '20240116_092933'
 - ID: 2
   ServiceName: Sky World Services Portal
   ServiceHost: portal.skyworld.co.ke

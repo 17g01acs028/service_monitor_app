@@ -981,6 +981,7 @@ public class Main {
 
     //Write to files
 
+    //write to csv
     public static void updateCsvLastTime(String serviceId, String newLogTime,String CSV_FILE_PATH,String action_type ) throws IOException {
         List<CSVRecord> records = readCsvFile(CSV_FILE_PATH);
         List<String[]> updatedRecords = new ArrayList<>();
@@ -1080,7 +1081,6 @@ public class Main {
             yamlData = yaml.load(reader);
         }
 
-
         List<Map<String, Object>> services = (List<Map<String, Object>>) yamlData.get("services");
         boolean serviceFound = false;
         for (Map<String, Object> service : services) {
@@ -1146,7 +1146,7 @@ public class Main {
     //write to json file
     private static Gson createGsonWithCustomDeserializer() {
         return new GsonBuilder()
-                .setPrettyPrinting()  // Enable pretty printing
+                .setPrettyPrinting()
                 .registerTypeAdapter(ServiceInfo.class, new JsonDeserializer<ServiceInfo>() {
 
                     @Override
